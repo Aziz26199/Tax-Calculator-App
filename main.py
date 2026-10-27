@@ -4,6 +4,10 @@ import datetime
 import io
 import tax_logic as tl
 from db_handler import DatabaseHandler, COLUMNS, HEADERS
+import os
+import streamlit as st
+if os.path.exists("invoices.db"):
+    os.remove("invoices.db")
 
 st.set_page_config(page_title="Invoice & Tax Management System", layout="wide")
 

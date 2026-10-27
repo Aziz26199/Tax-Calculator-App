@@ -4,23 +4,19 @@ import datetime
 import tax_logic as tl
 from db_handler import DatabaseHandler, COLUMNS, HEADERS
 
-# Page config
 st.set_page_config(page_title="Invoice & Tax Calculator", layout="wide")
 
-# Initialize Database
 @st.cache_resource
 def get_db():
     return DatabaseHandler()
 
 db = get_db()
 
-# Initialize Session State variables
 if 'edit_id' not in st.session_state:
     st.session_state.edit_id = None
 if 'page' not in st.session_state:
     st.session_state.page = "Calculator & Entry"
 
-# Navigation Sidebar
 st.sidebar.title("Navigation")
 menu = ["Calculator & Entry", "Invoice History"]
 selected_page = st.sidebar.radio("Go to", menu, index=menu.index(st.session_state.page))
@@ -29,7 +25,6 @@ st.session_state.page = selected_page
 def money(v):
     return f"{v:,.2f}"
 
-# ==================== PAGE 1: CALCULATOR ====================
 if st.session_state.page == "Calculator & Entry":
     st.title("Tax Calculator & Invoice Entry")
     
@@ -73,10 +68,11 @@ if st.session_state.page == "Calculator & Entry":
             chk_atl = st.checkbox("Income Tax ATL Active?", value=bool(rec['atl_active']) if rec else True)
             chk_co = st.checkbox("Service Provider is a Company?", value=bool(rec['is_company']) if rec else True)
             
-            _, auto_it_rate = tl.get_rates(authority, category, subcategory, chk_reg, chk_atl, chk_co)
+            _, auto_it_rate, _ = tl.get_rates(authority, category, subcategory, chk_reg, chk_atl, chk_co)
             it_rate_val = (rec.get('it_rate', auto_it_rate) * 100) if rec else (auto_it_rate * 100)
             
             it_rate_input = st.number_input("Income Tax Rate (%) [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
+            manual_deduction_input = st.number_input("Manual Further Deduction / Adjustment", min_value=0.0, value=0.0, step=100.0)
 
     st.markdown("---")
     
@@ -84,7 +80,7 @@ if st.session_state.page == "Calculator & Entry":
     
     c_val1, c_val2 = st.columns(2)
     with c_val1:
-        base_val = st.number_input("Base Invoice Value", min_value=0.0, value=float(rec['base_value']) if rec else 0.0, disabled=is_reverse)
+        base_val = st.number_input("Base Invoice Value / Gross Rent", min_value=0.0, value=float(rec['base_value']) if rec else 0.0, disabled=is_reverse)
     with c_val2:
         net_payment_in = st.number_input("Net Payment Received (For Reverse)", min_value=0.0, value=0.0, disabled=not is_reverse)
 
@@ -96,7 +92,8 @@ if st.session_state.page == "Calculator & Entry":
         atl_active=chk_atl,
         is_company=chk_co,
         st_rate=st_rate / 100.0,
-        manual_it_rate=it_rate_input / 100.0
+        manual_it_rate=it_rate_input / 100.0,
+        manual_deduction=manual_deduction_input
     )
 
     result = None
@@ -119,7 +116,7 @@ if st.session_state.page == "Calculator & Entry":
         m5.metric("IT Withheld", money(result['it_withheld']))
         m6.metric("NET PAYABLE", money(result['net']))
         
-        st.caption(f"ST rate {result['st_rate']*100:.2f}% | ST withheld {result['st_wh_frac']*100:.0f}% of ST | IT rate {result['it_rate']*100:.2f}% on Gross")
+        st.caption(f"ST rate {result['st_rate']*100:.2f}% | ST withheld {result['st_wh_frac']*100:.0f}% of ST | IT rate {result['it_rate']*100:.2f}% on Gross | Manual Deduction: {money(result['manual_deduction'])}")
         
         if st.button("Save to Database" if not st.session_state.edit_id else "Update Invoice", type="primary"):
             if not inv_no.strip() or not client.strip():
@@ -148,7 +145,6 @@ if st.session_state.page == "Calculator & Entry":
     else:
         st.info("Amounts enter karein calculation dekhne ke liye.")
 
-# ==================== PAGE 2: HISTORY ====================
 elif st.session_state.page == "Invoice History":
     st.title("Invoice History")
     

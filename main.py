@@ -19,14 +19,13 @@ if 'page' not in st.session_state:
     st.session_state.page = "Calculator & Entry"
 
 st.sidebar.title("Navigation")
-menu = ["Calculator & Entry", "Invoice History & Bulk Upload"]
-selected_page = st.sidebar.radio("Go to", menu, index=menu.index(st.session_state.page))
+menu = ["Calculator & Entry", "Invoice History & Bulk Upload", "Graphical Dashboard"]
+selected_page = st.sidebar.radio("Go to", menu, index=menu.index(st.session_state.page) if st.session_state.page in menu else 0)
 st.session_state.page = selected_page
 
 def money(v):
     return f"{v:,.2f}"
 
-# --- SAFE CONVERTERS FOR EXCEL DATA ---
 def safe_str(val, default=""):
     if pd.isna(val):
         return default
@@ -38,11 +37,9 @@ def safe_str(val, default=""):
 def safe_month(val, default=""):
     if pd.isna(val):
         return default
-    # Agar Excel date ko datetime object bana de
     if isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)):
         return val.strftime("%b-%Y")
     s = str(val).strip()
-    # Agar string mein convert ho kar lamba timestamp ban jaye
     if len(s) > 10 and "-" in s and ":" in s: 
         try:
             return pd.to_datetime(s).strftime("%b-%Y")
@@ -67,8 +64,8 @@ def safe_float(val, default=0.0):
         return float(val) if str(val).strip() != "" else default
     except:
         return default
-# ---------------------------------------------
 
+# ==================== PAGE 1: CALCULATOR ====================
 if st.session_state.page == "Calculator & Entry":
     st.title("Tax Calculator & Invoice Entry")
     
@@ -206,15 +203,15 @@ if st.session_state.page == "Calculator & Entry":
     else:
         st.info("Amounts enter karein calculation dekhne ke liye.")
 
+# ==================== PAGE 2: HISTORY & BULK UPLOAD ====================
 elif st.session_state.page == "Invoice History & Bulk Upload":
-    st.title("Invoice History, Management & Excel Bulk Upload")
+    st.title("Invoice History, Management & Filters")
     
     with st.expander("📁 Bulk Upload Invoices via Excel / Download Sample Template"):
         col_up1, col_up2 = st.columns(2)
         
         with col_up1:
             st.markdown("#### 1. Download Sample Template")
-            st.write("Is sample file ko download karein taake columns format bilkul theek rahe.")
             sample_df = pd.DataFrame(columns=[
                 "invoice_number", "invoice_month", "posting_date", "client", "ntn", "authority", "category", 
                 "subcategory", "st_rate", "st_registered", "atl_active", "is_company", 
@@ -274,14 +271,31 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
                             }
                             db.insert_invoice(rec_dict)
                             count += 1
-                        st.success(f"Successfully imported {count} invoices from Excel! Missing data was safely skipped.")
+                        st.success(f"Successfully imported {count} invoices from Excel!")
                         st.rerun()
                 except Exception as e:
                     st.error(f"Error reading Excel file: {e}")
 
     st.markdown("---")
-    search_q = st.text_input("Search client / NTN / invoice # / authority / Month...")
-    rows = db.fetch_all(search_q.strip())
+    
+    # --- FILTERS SECTION ---
+    st.subheader("🔍 Advanced Filters & Search")
+    all_raw_rows = db.fetch_all()
+    
+    f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+    with f_col1:
+        search_q = st.text_input("Search Client / Invoice # / NTN")
+    with f_col2:
+        auth_list = ["All"] + list(tl.AUTHORITIES.keys())
+        sel_auth = st.selectbox("Filter by Authority", auth_list)
+    with f_col3:
+        cat_list = ["All"] + list(tl.CATEGORIES.keys())
+        sel_cat = st.selectbox("Filter by Category", cat_list)
+    with f_col4:
+        months_available = ["All"] + sorted(list(set(r['invoice_month'] for r in all_raw_rows if r['invoice_month'])))
+        sel_month = st.selectbox("Filter by Invoice Month", months_available)
+
+    rows = db.fetch_all(search=search_q.strip(), authority_filter=sel_auth, category_filter=sel_cat, month_filter=sel_month)
     
     if rows:
         df = pd.DataFrame(rows)
@@ -301,7 +315,7 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
         st.dataframe(df_display, use_container_width=True, hide_index=True)
         
         total_net = sum(r['net_payable'] for r in rows)
-        st.info(f"**Total Records:** {len(rows)}   |   **Total Net Payable:** {money(total_net)}")
+        st.info(f"**Filtered Records:** {len(rows)}   |   **Total Net Payable:** {money(total_net)}")
         
         st.markdown("### Record Actions")
         c_act1, c_act2, c_act3 = st.columns([1, 1, 3])
@@ -318,9 +332,9 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
                 st.session_state.page = "Calculator & Entry"
                 st.rerun()
                 
-            if st.button("Delete Selected Record", type="secondary") and action_id:
+            if st.button("Delete Selected", type="secondary") and action_id:
                 db.delete_invoice(action_id)
-                st.success(f"Record ID {action_id} successfully deleted!")
+                st.success(f"Record ID {action_id} deleted!")
                 st.rerun()
                     
         with c_act3:
@@ -332,10 +346,63 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
             excel_export_data = output_exp.getvalue()
             
             st.download_button(
-                label="📥 Download Database as Excel File",
+                label="📥 Download Filtered Data as Excel",
                 data=excel_export_data,
-                file_name=f"Invoices_Export_{datetime.date.today()}.xlsx",
+                file_name=f"Invoices_Filtered_{datetime.date.today()}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+            
+        st.markdown("---")
+        # --- DELETE ALL INVOICES BUTTON ---
+        with st.expander("⚠ Danger Zone: Delete All Records"):
+            st.warning("Yeh button database ki sari invoices hamesha ke liye delete kar dega!")
+            confirm_del = st.checkbox("I understand the risk, delete all records")
+            if st.button("🗑 Delete ALL Invoices", type="primary") and confirm_del:
+                db.delete_all_invoices()
+                st.success("All invoices successfully deleted!")
+                st.rerun()
     else:
-        st.info("No records found in database.")
+        st.info("No records found matching your filters.")
+
+# ==================== PAGE 3: GRAPHICAL DASHBOARD ====================
+elif st.session_state.page == "Graphical Dashboard":
+    st.title("📊 Tax & Invoice Graphical Dashboard")
+    
+    rows = db.fetch_all()
+    if rows:
+        df_dash = pd.DataFrame(rows)
+        
+        # Summary Metrics
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Total Invoices", len(df_dash))
+        m2.metric("Total Base Value", money(df_dash['base_value'].sum()))
+        m3.metric("Total Income Tax Withheld", money(df_dash['it_withheld'].sum()))
+        m4.metric("Total Net Payable", money(df_dash['net_payable'].sum()))
+        
+        st.markdown("---")
+        
+        g1, g2 = st.columns(2)
+        with g1:
+            st.subheader("Tax Authority Wise Net Payable")
+            auth_group = df_dash.groupby('authority')['net_payable'].sum().reset_index()
+            st.bar_chart(auth_group.set_index('authority'))
+            
+        with g2:
+            st.subheader("Category Wise Total Base Value")
+            cat_group = df_dash.groupby('category')['base_value'].sum().reset_index()
+            st.bar_chart(cat_group.set_index('category'))
+            
+        st.markdown("---")
+        
+        g3, g4 = st.columns(2)
+        with g3:
+            st.subheader("Invoice Month Wise Trend (Net Payable)")
+            month_group = df_dash.groupby('invoice_month')['net_payable'].sum().reset_index()
+            st.line_chart(month_group.set_index('invoice_month'))
+            
+        with g4:
+            st.subheader("Sales Tax vs Income Tax Withheld")
+            tax_compare = df_dash[['invoice_month', 'sales_tax', 'it_withheld']].copy()
+            st.area_chart(tax_compare)
+    else:
+        st.info("Dashboard ke liye abhi koi data mojood nahi hai. Pehle kuch invoices enter ya upload karein.")

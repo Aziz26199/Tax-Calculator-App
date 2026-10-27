@@ -353,7 +353,6 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
             )
             
         st.markdown("---")
-        # --- DELETE ALL INVOICES BUTTON ---
         with st.expander("⚠ Danger Zone: Delete All Records"):
             st.warning("Yeh button database ki sari invoices hamesha ke liye delete kar dega!")
             confirm_del = st.checkbox("I understand the risk, delete all records")
@@ -402,7 +401,7 @@ elif st.session_state.page == "Graphical Dashboard":
             
         with g4:
             st.subheader("Sales Tax vs Income Tax Withheld")
-            tax_compare = df_dash[['invoice_month', 'sales_tax', 'it_withheld']].copy()
-            st.area_chart(tax_compare)
+            tax_compare = df_dash.groupby('invoice_month')[['sales_tax', 'it_withheld']].sum().reset_index()
+            st.area_chart(tax_compare.set_index('invoice_month'))
     else:
         st.info("Dashboard ke liye abhi koi data mojood nahi hai. Pehle kuch invoices enter ya upload karein.")

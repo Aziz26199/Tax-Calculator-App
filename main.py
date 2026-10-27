@@ -67,8 +67,7 @@ if st.session_state.page == "Calculator & Entry":
             subcat_idx = subcat_options.index(rec['subcategory']) if (rec and rec['subcategory'] in subcat_options) else 0
             subcategory = st.selectbox("Sub-Category", subcat_options, index=subcat_idx if subcat_options else 0)
 
-        with c3:
-            # Default ST Rate logic
+with c3:
             default_rate = tl.default_st_rate(authority) * 100
             st_rate_val = (rec['st_rate'] * 100) if rec else default_rate
             st_rate = st.number_input("Sales Tax Rate (%)", min_value=0.0, max_value=100.0, value=float(st_rate_val), step=1.0)
@@ -76,6 +75,13 @@ if st.session_state.page == "Calculator & Entry":
             chk_reg = st.checkbox("Service Provider ST Registered & Active?", value=bool(rec['st_registered']) if rec else True)
             chk_atl = st.checkbox("Income Tax ATL Active?", value=bool(rec['atl_active']) if rec else True)
             chk_co = st.checkbox("Service Provider is a Company?", value=bool(rec['is_company']) if rec else True)
+            
+            # Auto-calculate default IT rate based on selections
+            _, auto_it_rate = tl.get_rates(authority, category, subcategory, chk_reg, chk_atl, chk_co)
+            it_rate_val = (rec.get('it_rate', auto_it_rate) * 100) if rec else (auto_it_rate * 100)
+            
+            # Manual override option for IT Rate
+            it_rate_input = st.number_input("Income Tax Rate (%) [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
 
     st.markdown("---")
     
@@ -88,7 +94,7 @@ if st.session_state.page == "Calculator & Entry":
     with c_val2:
         net_payment_in = st.number_input("Net Payment Received (For Reverse)", min_value=0.0, value=0.0, disabled=not is_reverse)
 
-    # Calculation Logic
+# Calculation Logic
     params = dict(
         authority=authority,
         category=category,
@@ -96,7 +102,8 @@ if st.session_state.page == "Calculator & Entry":
         st_registered=chk_reg,
         atl_active=chk_atl,
         is_company=chk_co,
-        st_rate=st_rate / 100.0
+        st_rate=st_rate / 100.0,
+        manual_it_rate=it_rate_input / 100.0  # Naya parameter pass kar diya
     )
 
     result = None

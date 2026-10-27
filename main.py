@@ -68,13 +68,17 @@ if st.session_state.page == "Calculator & Entry":
             chk_atl = st.checkbox("Income Tax ATL Active?", value=bool(rec['atl_active']) if rec else True)
             chk_co = st.checkbox("Service Provider is a Company?", value=bool(rec['is_company']) if rec else True)
             
-            _, auto_it_rate, _ = tl.get_rates(authority, category, subcategory, chk_reg, chk_atl, chk_co)
+            # Auto rates for UI defaults
+            auto_st_wh, auto_it_rate, _ = tl.get_rates(authority, category, subcategory, chk_reg, chk_atl, chk_co)
+            
+            st_wh_val = (rec.get('st_wh_frac', auto_st_wh) * 100) if rec else (auto_st_wh * 100)
             it_rate_val = (rec.get('it_rate', auto_it_rate) * 100) if rec else (auto_it_rate * 100)
             
-            it_rate_input = st.number_input("Income Tax Rate (%) [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
+            st_wh_input = st.number_input("Sales Tax Withholding % of ST [Editable]", min_value=0.0, max_value=100.0, value=float(st_wh_val), step=5.0)
+            it_rate_input = st.number_input("Income Tax Rate % [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
             manual_deduction_input = st.number_input("Manual Further Deduction / Adjustment", min_value=0.0, value=0.0, step=100.0)
 
-    # Monthly Rent Option (Sirf tab dikhega jab Sec 155 Rent aur Individual/AOP ho)
+    # Monthly Rent Option
     is_monthly_rent = False
     if category == "Sec 155 - Rent of Immovable Property" and not chk_co:
         is_monthly_rent = st.checkbox("Is this Monthly Rent? (Auto-multiply by 12 for annual slabs)", value=True)
@@ -98,6 +102,7 @@ if st.session_state.page == "Calculator & Entry":
         is_company=chk_co,
         st_rate=st_rate / 100.0,
         manual_it_rate=it_rate_input / 100.0,
+        manual_st_wh_pct=st_wh_input / 100.0,
         manual_deduction=manual_deduction_input,
         is_monthly_rent=is_monthly_rent
     )
@@ -122,7 +127,7 @@ if st.session_state.page == "Calculator & Entry":
         m5.metric("IT Withheld", money(result['it_withheld']))
         m6.metric("NET PAYABLE", money(result['net']))
         
-        st.caption(f"ST rate {result['st_rate']*100:.2f}% | ST withheld {result['st_wh_frac']*100:.0f}% of ST | IT rate {result['it_rate']*100:.2f}% | Manual Deduction: {money(result['manual_deduction'])}")
+        st.caption(f"ST rate {result['st_rate']*100:.2f}% | ST withheld {result['st_wh_frac']*100:.2f}% of ST | IT rate {result['it_rate']*100:.2f}% | Manual Deduction: {money(result['manual_deduction'])}")
         
         if st.button("Save to Database" if not st.session_state.edit_id else "Update Invoice", type="primary"):
             if not inv_no.strip() or not client.strip():

@@ -1,7 +1,7 @@
 import sqlite3
 import pandas as pd
 
-DB_FILE = ":memory:"  
+DB_FILE = "invoices.db"  # Permanent file-based storage
 
 COLUMNS = [
     "id", "invoice_number", "invoice_month", "posting_date", "client", "ntn", "authority", "category", 
@@ -17,7 +17,8 @@ HEADERS = [
 
 class DatabaseHandler:
     def __init__(self):
-        self.conn = sqlite3.connect("file:memdb1?mode=memory&cache=shared", uri=True, check_same_thread=False)
+        # Using local file path with check_same_thread=False for Streamlit multithreading safety
+        self.conn = sqlite3.connect(DB_FILE, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.create_table()
 

@@ -26,11 +26,28 @@ st.session_state.page = selected_page
 def money(v):
     return f"{v:,.2f}"
 
-# --- SAFE CONVERTERS FOR MISSING EXCEL DATA ---
+# --- SAFE CONVERTERS FOR EXCEL DATA ---
 def safe_str(val, default=""):
     if pd.isna(val):
         return default
     s = str(val).strip()
+    if s.lower() == 'nan':
+        return default
+    return s
+
+def safe_month(val, default=""):
+    if pd.isna(val):
+        return default
+    # Agar Excel date ko datetime object bana de
+    if isinstance(val, (datetime.datetime, datetime.date, pd.Timestamp)):
+        return val.strftime("%b-%Y")
+    s = str(val).strip()
+    # Agar string mein convert ho kar lamba timestamp ban jaye
+    if len(s) > 10 and "-" in s and ":" in s: 
+        try:
+            return pd.to_datetime(s).strftime("%b-%Y")
+        except:
+            pass
     if s.lower() == 'nan':
         return default
     return s
@@ -71,10 +88,9 @@ if st.session_state.page == "Calculator & Entry":
         with c1:
             inv_no = st.text_input("Invoice Number", value=rec['invoice_number'] if rec else "")
             
-            # Dates & Month Handling
-            current_month_str = datetime.date.today().strftime("%b-%y") # format like Oct-26
+            current_month_str = datetime.date.today().strftime("%b-%Y")
             inv_month_val = rec['invoice_month'] if rec and rec.get('invoice_month') else current_month_str
-            inv_month = st.text_input("Invoice Month (MMM-YY)", value=inv_month_val)
+            inv_month = st.text_input("Invoice Month (MMM-YY ya MMM-YYYY)", value=inv_month_val)
             
             post_date_val = datetime.datetime.strptime(rec['posting_date'], "%Y-%m-%d").date() if rec and rec.get('posting_date') else datetime.date.today()
             post_date = st.date_input("Posting Date", value=post_date_val)
@@ -205,7 +221,7 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
                 "base_value", "sales_tax", "st_withheld", "gross_value", "it_withheld", "net_payable"
             ])
             sample_loc = pd.DataFrame([{
-                "invoice_number": "INV-001", "invoice_month": datetime.date.today().strftime("%b-%y"), 
+                "invoice_number": "INV-001", "invoice_month": datetime.date.today().strftime("%b-%Y"), 
                 "posting_date": str(datetime.date.today()), 
                 "client": "ABC Corp", "ntn": "1234567-8",
                 "authority": "FBR (Goods)", "category": "Sec 153 - Supplies", "subcategory": "General Supplies",
@@ -236,10 +252,9 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
                     if st.button("Confirm & Import into Database"):
                         count = 0
                         for _, row in df_upload.iterrows():
-                            # SAFE IMPORT: Missing data will not crash the app
                             rec_dict = {
                                 "invoice_number": safe_str(row.get("invoice_number"), ""),
-                                "invoice_month": safe_str(row.get("invoice_month"), datetime.date.today().strftime("%b-%y")),
+                                "invoice_month": safe_month(row.get("invoice_month"), datetime.date.today().strftime("%b-%Y")),
                                 "posting_date": safe_str(row.get("posting_date"), str(datetime.date.today())),
                                 "client": safe_str(row.get("client"), ""),
                                 "ntn": safe_str(row.get("ntn"), ""),

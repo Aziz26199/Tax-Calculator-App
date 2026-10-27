@@ -4,7 +4,7 @@ import datetime
 import tax_logic as tl
 from db_handler import DatabaseHandler, COLUMNS, HEADERS
 
-st.set_page_config(page_title="Invoice & Tax Calculator", layout="wide")
+st.set_page_config(page_title="Invoice & Tax Management System", layout="wide")
 
 @st.cache_resource
 def get_db():
@@ -31,7 +31,8 @@ if st.session_state.page == "Calculator & Entry":
     rec = None
     if st.session_state.edit_id:
         rec = db.fetch_one(st.session_state.edit_id)
-        st.info(f"Editing Invoice ID: {st.session_state.edit_id} (Invoice #: {rec['invoice_number']})")
+        if rec:
+            st.info(f"Editing Invoice ID: {st.session_state.edit_id} (Invoice #: {rec['invoice_number']})")
         if st.button("Cancel Edit"):
             st.session_state.edit_id = None
             st.rerun()
@@ -42,33 +43,32 @@ if st.session_state.page == "Calculator & Entry":
         
         with c1:
             inv_no = st.text_input("Invoice Number", value=rec['invoice_number'] if rec else "")
-            date_val = datetime.datetime.strptime(rec['date'], "%Y-%m-%d").date() if rec else datetime.date.today()
+            date_val = datetime.datetime.strptime(rec['date'], "%Y-%m-%d").date() if rec and rec.get('date') else datetime.date.today()
             inv_date = st.date_input("Date", value=date_val)
             client = st.text_input("Client Name", value=rec['client'] if rec else "")
             
         with c2:
             auth_options = list(tl.AUTHORITIES.keys())
-            auth_idx = auth_options.index(rec['authority']) if rec else 0
+            auth_idx = auth_options.index(rec['authority']) if (rec and rec.get('authority') in auth_options) else 0
             authority = st.selectbox("Tax Authority", auth_options, index=auth_idx)
             
             cat_options = list(tl.CATEGORIES.keys())
-            cat_idx = cat_options.index(rec['category']) if rec else 0
+            cat_idx = cat_options.index(rec['category']) if (rec and rec.get('category') in cat_options) else 0
             category = st.selectbox("Category", cat_options, index=cat_idx)
             
             subcat_options = tl.CATEGORIES.get(category, [])
-            subcat_idx = subcat_options.index(rec['subcategory']) if (rec and rec['subcategory'] in subcat_options) else 0
+            subcat_idx = subcat_options.index(rec['subcategory']) if (rec and rec.get('subcategory') in subcat_options) else 0
             subcategory = st.selectbox("Sub-Category", subcat_options, index=subcat_idx if subcat_options else 0)
 
         with c3:
             default_rate = tl.default_st_rate(authority) * 100
-            st_rate_val = (rec['st_rate'] * 100) if rec else default_rate
+            st_rate_val = (rec['st_rate'] * 100) if (rec and rec.get('st_rate') is not None) else default_rate
             st_rate = st.number_input("Sales Tax Rate (%)", min_value=0.0, max_value=100.0, value=float(st_rate_val), step=1.0)
             
-            chk_reg = st.checkbox("Service Provider ST Registered & Active?", value=bool(rec['st_registered']) if rec else True)
-            chk_atl = st.checkbox("Income Tax ATL Active?", value=bool(rec['atl_active']) if rec else True)
-            chk_co = st.checkbox("Service Provider is a Company?", value=bool(rec['is_company']) if rec else True)
+            chk_reg = st.checkbox("Service Provider ST Registered & Active?", value=bool(rec['st_registered']) if (rec and rec.get('st_registered') is not None) else True)
+            chk_atl = st.checkbox("Income Tax ATL Active?", value=bool(rec['atl_active']) if (rec and rec.get('atl_active') is not None) else True)
+            chk_co = st.checkbox("Service Provider is a Company?", value=bool(rec['is_company']) if (rec and rec.get('is_company') is not None) else True)
             
-            # Auto rates for UI defaults
             auto_st_wh, auto_it_rate, _ = tl.get_rates(authority, category, subcategory, chk_reg, chk_atl, chk_co)
             
             st_wh_val = (rec.get('st_wh_frac', auto_st_wh) * 100) if rec else (auto_st_wh * 100)
@@ -76,9 +76,8 @@ if st.session_state.page == "Calculator & Entry":
             
             st_wh_input = st.number_input("Sales Tax Withholding % of ST [Editable]", min_value=0.0, max_value=100.0, value=float(st_wh_val), step=5.0)
             it_rate_input = st.number_input("Income Tax Rate % [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
-            manual_deduction_input = st.number_input("Manual Further Deduction / Adjustment", min_value=0.0, value=0.0, step=100.0)
+            manual_deduction_input = st.number_input("Manual Further Deduction / Adjustment", min_value=0.0, value=float(rec.get('manual_deduction', 0.0)) if rec else 0.0, step=100.0)
 
-    # Monthly Rent Option
     is_monthly_rent = False
     if category == "Sec 155 - Rent of Immovable Property" and not chk_co:
         is_monthly_rent = st.checkbox("Is this Monthly Rent? (Auto-multiply by 12 for annual slabs)", value=True)
@@ -89,7 +88,7 @@ if st.session_state.page == "Calculator & Entry":
     
     c_val1, c_val2 = st.columns(2)
     with c_val1:
-        base_val = st.number_input("Base Invoice Value / Gross Rent", min_value=0.0, value=float(rec['base_value']) if rec else 0.0, disabled=is_reverse)
+        base_val = st.number_input("Base Invoice Value / Gross Rent", min_value=0.0, value=float(rec['base_value']) if (rec and rec.get('base_value') is not None) else 0.0, disabled=is_reverse)
     with c_val2:
         net_payment_in = st.number_input("Net Payment Received (For Reverse)", min_value=0.0, value=0.0, disabled=not is_reverse)
 
@@ -157,54 +156,62 @@ if st.session_state.page == "Calculator & Entry":
         st.info("Amounts enter karein calculation dekhne ke liye.")
 
 elif st.session_state.page == "Invoice History":
-    st.title("Invoice History")
+    st.title("Invoice History & Management")
     
     search_q = st.text_input("Search client / invoice # / authority...")
     rows = db.fetch_all(search_q.strip())
     
     if rows:
-        df = pd.DataFrame(rows, columns=HEADERS)
+        df = pd.DataFrame(rows)
+        # Ensure column order matches HEADERS
+        df = df[COLUMNS]
+        
+        # Format display values cleanly
         df_display = df.copy()
-        for col in ["Base Value", "Sales Tax", "ST Withheld", "Gross Value", "IT Withheld", "Net Payable"]:
+        df_display["st_registered"] = df_display["st_registered"].apply(lambda x: "Yes" if x else "No")
+        df_display["atl_active"] = df_display["atl_active"].apply(lambda x: "Yes" if x else "No")
+        df_display["is_company"] = df_display["is_company"].apply(lambda x: "Yes" if x else "No")
+        df_display["st_rate"] = df_display["st_rate"].apply(lambda x: f"{x*100:.2f}%" if pd.notnull(x) else "0.00%")
+        
+        for col in ["base_value", "sales_tax", "st_withheld", "gross_value", "it_withheld", "net_payable"]:
             df_display[col] = df_display[col].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "0.00")
+            
+        df_display.columns = HEADERS
         
         st.dataframe(df_display, use_container_width=True, hide_index=True)
-        st.write(f"**Total Records:** {len(rows)} | **Total Net Payable:** {money(sum(r['net_payable'] for r in rows))}")
         
-        st.markdown("### Actions")
+        total_net = sum(r['net_payable'] for r in rows)
+        st.info(f"**Total Records:** {len(rows)}   |   **Total Net Payable:** {money(total_net)}")
+        
+        st.markdown("### Record Actions")
         c_act1, c_act2, c_act3 = st.columns([1, 1, 3])
         
+        valid_ids = [r['id'] for r in rows]
         with c_act1:
-            action_id = st.number_input("Enter ID to Edit/Delete", min_value=1, step=1)
+            action_id = st.selectbox("Select Record ID", options=valid_ids if valid_ids else [0])
         
         with c_act2:
             st.write("")
             st.write("")
-            if st.button("Edit Selected"):
-                if any(r['id'] == action_id for r in rows):
-                    st.session_state.edit_id = action_id
-                    st.session_state.page = "Calculator & Entry"
-                    st.rerun()
-                else:
-                    st.error("ID not found.")
-                    
-            if st.button("Delete Selected"):
-                if any(r['id'] == action_id for r in rows):
-                    db.delete_invoice(action_id)
-                    st.success(f"Record ID {action_id} deleted!")
-                    st.rerun()
-                else:
-                    st.error("ID not found.")
+            if st.button("Edit Selected Record") and action_id:
+                st.session_state.edit_id = action_id
+                st.session_state.page = "Calculator & Entry"
+                st.rerun()
+                
+            if st.button("Delete Selected Record", type="secondary") and action_id:
+                db.delete_invoice(action_id)
+                st.success(f"Record ID {action_id} successfully deleted!")
+                st.rerun()
                     
         with c_act3:
             st.write("")
             st.write("")
             csv_data = df.to_csv(index=False).encode('utf-8')
             st.download_button(
-                label="Download as CSV",
+                label="Download Complete Database as CSV",
                 data=csv_data,
                 file_name=f"Invoices_Export_{datetime.date.today()}.csv",
                 mime='text/csv'
             )
     else:
-        st.info("No records found.")
+        st.info("No records found in database.")

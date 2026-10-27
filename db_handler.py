@@ -94,7 +94,7 @@ class DatabaseHandler:
         self.conn.execute("DELETE FROM invoices")
         self.conn.commit()
 
-    def fetch_all(self, search="", authority_filter="All", category_filter="All", month_filter="All"):
+    def fetch_all(self, search="", authority_filter="All", category_filter="All", month_filter="All", **kwargs):
         cursor = self.conn.cursor()
         query = "SELECT * FROM invoices WHERE 1=1"
         params = []

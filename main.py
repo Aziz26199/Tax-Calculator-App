@@ -79,13 +79,13 @@ if st.session_state.page == "Calculator & Entry":
 
     st.markdown("---")
     
-    # Financial Inputs
+  # Financial Inputs
+    is_reverse = st.toggle("Reverse Working (Net Payment se nikalo)")
+    
     c_val1, c_val2 = st.columns(2)
     with c_val1:
-        is_reverse = st.toggle("Reverse Working (Net Payment se nikalo)")
         base_val = st.number_input("Base Invoice Value", min_value=0.0, value=float(rec['base_value']) if rec else 0.0, disabled=is_reverse)
     with c_val2:
-        st.write("") # spacing
         net_payment_in = st.number_input("Net Payment Received (For Reverse)", min_value=0.0, value=0.0, disabled=not is_reverse)
 
     # Calculation Logic

@@ -82,7 +82,7 @@ with c3:
             
             # Manual override option for IT Rate
             it_rate_input = st.number_input("Income Tax Rate (%) [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
-    st.markdown("---")
+            st.markdown("---")
     
   # Financial Inputs
     is_reverse = st.toggle("Reverse Working (Net Payment se nikalo)")

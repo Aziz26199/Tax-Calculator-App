@@ -80,19 +80,20 @@ with c3:
             _, auto_it_rate = tl.get_rates(authority, category, subcategory, chk_reg, chk_atl, chk_co)
             it_rate_val = (rec.get('it_rate', auto_it_rate) * 100) if rec else (auto_it_rate * 100)
             
-# Manual override option for IT Rate
-    it_rate_input = st.number_input("Income Tax Rate (%) [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
+            # Manual override option for IT Rate
+            it_rate_input = st.number_input("Income Tax Rate (%) [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
     st.markdown("---")
     
   # Financial Inputs
     is_reverse = st.toggle("Reverse Working (Net Payment se nikalo)")
     
-    c_val1, c_val2 = st.columns(2)
+  c_val1, c_val2 = st.columns(2)
+    
     with c_val1:
         base_val = st.number_input("Base Invoice Value", min_value=0.0, value=float(rec['base_value']) if rec else 0.0, disabled=is_reverse)
+        
     with c_val2:
         net_payment_in = st.number_input("Net Payment Received (For Reverse)", min_value=0.0, value=0.0, disabled=not is_reverse)
-
 # Calculation Logic
     params = dict(
         authority=authority,

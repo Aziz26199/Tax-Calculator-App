@@ -85,7 +85,7 @@ with c3:
             st.markdown("---")
     
   # Financial Inputs
-    is_reverse = st.toggle("Reverse Working (Net Payment se nikalo)")
+            is_reverse = st.toggle("Reverse Working (Net Payment se nikalo)")
     
   c_val1, c_val2 = st.columns(2)
     

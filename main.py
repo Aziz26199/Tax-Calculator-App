@@ -136,7 +136,7 @@ if st.session_state.page == "Calculator & Entry":
                     "st_registered": int(chk_reg), "atl_active": int(chk_atl),
                     "is_company": int(chk_co),
                     "base_value": round(result['base'], 2), "sales_tax": round(result['st'], 2),
-                    "st_withheld": round(result['st_withheld"], 2), "gross_value": round(result['gross'], 2),
+                    "st_withheld": round(result['st_withheld'], 2), "gross_value": round(result['gross'], 2),
                     "it_withheld": round(result['it_withheld'], 2), "net_payable": round(result['net'], 2),
                 }
                 

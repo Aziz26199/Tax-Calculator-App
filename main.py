@@ -87,7 +87,7 @@ with c3:
   # Financial Inputs
             is_reverse = st.toggle("Reverse Working (Net Payment se nikalo)")
     
-  c_val1, c_val2 = st.columns(2)
+            c_val1, c_val2 = st.columns(2)
     
     with c_val1:
         base_val = st.number_input("Base Invoice Value", min_value=0.0, value=float(rec['base_value']) if rec else 0.0, disabled=is_reverse)

@@ -3,7 +3,7 @@
 AUTHORITIES = {
     "FBR (Goods)": 0.18,
     "FBR (ICT)": 0.15,
-    "SRB": 0.15,
+    "SRB": 0.13,
     "PRA": 0.16,
     "KPRA": 0.15,
     "BRA": 0.15,
@@ -147,11 +147,14 @@ def get_rates(authority, category, subcategory, st_registered, atl_active, is_co
 
     return st_wh_frac, it_rate, it_fixed_amount
 
-def calculate(base_value, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate=None, manual_deduction=0.0, is_monthly_rent=False):
+def calculate(base_value, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate=None, manual_st_wh_pct=None, manual_deduction=0.0, is_monthly_rent=False):
     if base_value < 0:
         raise ValueError("Base value negative nahi ho sakti.")
         
-    st_wh_frac, auto_it_rate, auto_fixed_amt = get_rates(authority, category, subcategory, st_registered, atl_active, is_company, base_value)
+    auto_st_wh_frac, auto_it_rate, auto_fixed_amt = get_rates(authority, category, subcategory, st_registered, atl_active, is_company, base_value)
+    
+    # Use manual overrides if provided
+    st_wh_frac = manual_st_wh_pct if manual_st_wh_pct is not None else auto_st_wh_frac
     it_rate = manual_it_rate if manual_it_rate is not None else auto_it_rate
     
     st_amount = base_value * st_rate
@@ -189,12 +192,14 @@ def calculate(base_value, authority, category, subcategory, st_registered, atl_a
         "it_rate": it_rate
     }
 
-def reverse_gross_up(net_payment, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate=None, manual_deduction=0.0, is_monthly_rent=False):
+def reverse_gross_up(net_payment, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate=None, manual_st_wh_pct=None, manual_deduction=0.0, is_monthly_rent=False):
     if net_payment <= 0:
         raise ValueError("Net payment zero se zyada honi chahiye.")
         
     adjusted_net = net_payment + manual_deduction
-    st_wh_frac, auto_it_rate, _ = get_rates(authority, category, subcategory, st_registered, atl_active, is_company, net_payment)
+    auto_st_wh_frac, auto_it_rate, _ = get_rates(authority, category, subcategory, st_registered, atl_active, is_company, net_payment)
+    
+    st_wh_frac = manual_st_wh_pct if manual_st_wh_pct is not None else auto_st_wh_frac
     it_rate = manual_it_rate if manual_it_rate is not None else auto_it_rate
     
     factor = 1 + st_rate - (st_rate * st_wh_frac) - ((1 + st_rate) * it_rate)
@@ -202,4 +207,4 @@ def reverse_gross_up(net_payment, authority, category, subcategory, st_registere
         raise ValueError("Taxes itne zyada hain ke reverse calculation mumkin nahi.")
         
     base_value = adjusted_net / factor
-    return calculate(base_value, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate, manual_deduction, is_monthly_rent)
+    return calculate(base_value, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate, manual_st_wh_pct, manual_deduction, is_monthly_rent)

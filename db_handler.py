@@ -1,7 +1,8 @@
 import sqlite3
 import pandas as pd
 
-DB_FILE = "invoices.db"  # Permanent file-based storage
+# Yeh line bata rahi hai ke database seedhi Z drive par bane gi
+DB_FILE = r"Z:\invoices.db"
 
 COLUMNS = [
     "id", "invoice_number", "invoice_month", "posting_date", "client", "ntn", "authority", "category", 

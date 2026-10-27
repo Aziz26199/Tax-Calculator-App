@@ -57,9 +57,10 @@ if st.session_state.page == "Calculator & Entry":
         with c1:
             inv_no = st.text_input("Invoice Number", value=rec['invoice_number'] if rec else "")
             
-            # Dates Handling
-            inv_date_val = datetime.datetime.strptime(rec['invoice_date'], "%Y-%m-%d").date() if rec and rec.get('invoice_date') else datetime.date.today()
-            inv_date = st.date_input("Invoice Date", value=inv_date_val)
+            # Dates & Month Handling
+            current_month_str = datetime.date.today().strftime("%b-%y") # format like Oct-26
+            inv_month_val = rec['invoice_month'] if rec and rec.get('invoice_month') else current_month_str
+            inv_month = st.text_input("Invoice Month (MMM-YY)", value=inv_month_val)
             
             post_date_val = datetime.datetime.strptime(rec['posting_date'], "%Y-%m-%d").date() if rec and rec.get('posting_date') else datetime.date.today()
             post_date = st.date_input("Posting Date", value=post_date_val)
@@ -152,7 +153,7 @@ if st.session_state.page == "Calculator & Entry":
             else:
                 record = {
                     "invoice_number": inv_no.strip(),
-                    "invoice_date": inv_date.strftime("%Y-%m-%d"),
+                    "invoice_month": inv_month.strip(),
                     "posting_date": post_date.strftime("%Y-%m-%d"),
                     "client": client.strip(),
                     "ntn": ntn.strip(),
@@ -185,12 +186,13 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
             st.markdown("#### 1. Download Sample Template")
             st.write("Is sample file ko download karein taake columns format bilkul theek rahe.")
             sample_df = pd.DataFrame(columns=[
-                "invoice_number", "invoice_date", "posting_date", "client", "ntn", "authority", "category", 
+                "invoice_number", "invoice_month", "posting_date", "client", "ntn", "authority", "category", 
                 "subcategory", "st_rate", "st_registered", "atl_active", "is_company", 
                 "base_value", "sales_tax", "st_withheld", "gross_value", "it_withheld", "net_payable"
             ])
             sample_loc = pd.DataFrame([{
-                "invoice_number": "INV-001", "invoice_date": "2026-10-27", "posting_date": str(datetime.date.today()), 
+                "invoice_number": "INV-001", "invoice_month": datetime.date.today().strftime("%b-%y"), 
+                "posting_date": str(datetime.date.today()), 
                 "client": "ABC Corp", "ntn": "1234567-8",
                 "authority": "FBR (Goods)", "category": "Sec 153 - Supplies", "subcategory": "General Supplies",
                 "st_rate": 0.18, "st_registered": 1, "atl_active": 1, "is_company": 1,
@@ -222,7 +224,7 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
                         for _, row in df_upload.iterrows():
                             rec_dict = {
                                 "invoice_number": str(row.get("invoice_number", "")),
-                                "invoice_date": str(row.get("invoice_date", datetime.date.today())),
+                                "invoice_month": str(row.get("invoice_month", datetime.date.today().strftime("%b-%y"))),
                                 "posting_date": str(row.get("posting_date", datetime.date.today())),
                                 "client": str(row.get("client", "")),
                                 "ntn": str(row.get("ntn", "")),
@@ -248,7 +250,7 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
                     st.error(f"Error reading Excel file: {e}")
 
     st.markdown("---")
-    search_q = st.text_input("Search client / NTN / invoice # / authority...")
+    search_q = st.text_input("Search client / NTN / invoice # / authority / Month...")
     rows = db.fetch_all(search_q.strip())
     
     if rows:

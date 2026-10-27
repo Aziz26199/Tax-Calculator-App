@@ -118,14 +118,7 @@ def get_rates(authority, category, subcategory, st_registered, atl_active, is_co
             if not atl_active:
                 it_rate = 0.30
             else:
-                if base_value <= 300000:
-                    it_fixed_amount = 0.0
-                elif base_value <= 600000:
-                    it_fixed_amount = (base_value - 300000) * 0.05
-                elif base_value <= 2000000:
-                    it_fixed_amount = 15000 + (base_value - 600000) * 0.10
-                else:
-                    it_fixed_amount = 155000 + (base_value - 2000000) * 0.25
+                it_rate = 0.0  # Slabs will handle this dynamically in calculate()
 
     elif category == "Sec 154 / 154A - Exports":
         if subcategory == "Export of Goods (General)":
@@ -151,9 +144,8 @@ def calculate(base_value, authority, category, subcategory, st_registered, atl_a
     if base_value < 0:
         raise ValueError("Base value negative nahi ho sakti.")
         
-    auto_st_wh_frac, auto_it_rate, auto_fixed_amt = get_rates(authority, category, subcategory, st_registered, atl_active, is_company, base_value)
+    auto_st_wh_frac, auto_it_rate, _ = get_rates(authority, category, subcategory, st_registered, atl_active, is_company, base_value)
     
-    # Use manual overrides if provided
     st_wh_frac = manual_st_wh_pct if manual_st_wh_pct is not None else auto_st_wh_frac
     it_rate = manual_it_rate if manual_it_rate is not None else auto_it_rate
     
@@ -161,19 +153,23 @@ def calculate(base_value, authority, category, subcategory, st_registered, atl_a
     st_withheld = st_amount * st_wh_frac
     gross_value = base_value + st_amount
     
-    if category == "Sec 155 - Rent of Immovable Property" and not is_company and atl_active and manual_it_rate is None:
-        annual_rent = (base_value * 12) if is_monthly_rent else base_value
-        
-        if annual_rent <= 300000:
-            annual_tax = 0.0
-        elif annual_rent <= 600000:
-            annual_tax = (annual_rent - 300000) * 0.05
-        elif annual_rent <= 2000000:
-            annual_tax = 15000 + (annual_rent - 600000) * 0.10
-        else:
-            annual_tax = 155000 + (annual_rent - 2000000) * 0.25
+    # Sec 155 Rent Slab Logic (Fixed to check manual override properly)
+    if category == "Sec 155 - Rent of Immovable Property" and not is_company and atl_active:
+        if manual_it_rate is None or manual_it_rate == 0.0:
+            annual_rent = (base_value * 12) if is_monthly_rent else base_value
             
-        it_withheld = (annual_tax / 12) if is_monthly_rent else annual_tax
+            if annual_rent <= 300000:
+                annual_tax = 0.0
+            elif annual_rent <= 600000:
+                annual_tax = (annual_rent - 300000) * 0.05
+            elif annual_rent <= 2000000:
+                annual_tax = 15000 + (annual_rent - 600000) * 0.10
+            else:
+                annual_tax = 155000 + (annual_rent - 2000000) * 0.25
+                
+            it_withheld = (annual_tax / 12) if is_monthly_rent else annual_tax
+        else:
+            it_withheld = gross_value * manual_it_rate
     else:
         it_withheld = gross_value * it_rate
         

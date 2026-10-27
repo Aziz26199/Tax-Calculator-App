@@ -1,4 +1,4 @@
-# tax_logic.py - Complete dynamic tax calculation based on Finance Act 2026 & Provincial Laws
+# tax_logic.py - Complete dynamic tax calculation based on Finance Act & Provincial Laws
 
 AUTHORITIES = {
     "FBR (Goods)": 0.18,
@@ -70,9 +70,8 @@ def get_rates(authority, category, subcategory, st_registered, atl_active, is_co
             st_wh_frac = 0.50
 
     it_rate = 0.0
-    it_fixed_amount = 0.0  # Used for rent slabs if applicable
+    it_fixed_amount = 0.0
 
-    # Sec 153 - Supplies
     if category == "Sec 153 - Supplies":
         if subcategory == "Sale of rice, cotton seed or edible oils":
             it_rate = 0.015 if atl_active else 0.03
@@ -81,7 +80,6 @@ def get_rates(authority, category, subcategory, st_registered, atl_active, is_co
         else:
             it_rate = 0.05 if (atl_active and is_company) else (0.10 if is_company else (0.055 if atl_active else 0.11))
                 
-    # Sec 153 - Services
     elif category == "Sec 153 - Services":
         if subcategory == "IT & IT Enabled Services":
             it_rate = 0.04 if atl_active else 0.08
@@ -96,18 +94,15 @@ def get_rates(authority, category, subcategory, st_registered, atl_active, is_co
         else:
             it_rate = 0.12 if (atl_active and is_company) else (0.24 if is_company else (0.15 if atl_active else 0.30))
                 
-    # Sec 153 - Contracts
     elif category == "Sec 153 - Contracts":
         if subcategory in ["Sports Persons", "Execution of a contract (other than goods/services)"]:
             it_rate = 0.15 if atl_active else 0.30
         else:
             it_rate = 0.075 if (atl_active and is_company) else (0.15 if is_company else (0.08 if atl_active else 0.16))
 
-    # Sec 153(2A) - E-Commerce
     elif category == "Sec 153(2A) - E-Commerce":
         it_rate = 0.01 if (subcat_check := subcategory == "Through digital means (Payment intermediary)") and atl_active else (0.02 if subcat_check else (0.02 if atl_active else 0.04))
 
-    # Sec 233 - Brokerage & Commission
     elif category == "Sec 233 - Brokerage & Commission":
         if subcategory == "Advertising Agents":
             it_rate = 0.10 if atl_active else 0.20
@@ -116,14 +111,12 @@ def get_rates(authority, category, subcategory, st_registered, atl_active, is_co
         else:
             it_rate = 0.12 if atl_active else 0.24
 
-    # Sec 155 - Rent of Immovable Property (Exact Slabs as per PDF)
     elif category == "Sec 155 - Rent of Immovable Property":
         if is_company:
             it_rate = 0.15 if atl_active else 0.30
         else:
-            # Individual / AOP Slabs (PDF Rules)
             if not atl_active:
-                it_rate = 0.30  # Non-ATL flat or double logic as per general rules
+                it_rate = 0.30
             else:
                 if base_value <= 300000:
                     it_fixed_amount = 0.0
@@ -134,7 +127,6 @@ def get_rates(authority, category, subcategory, st_registered, atl_active, is_co
                 else:
                     it_fixed_amount = 155000 + (base_value - 2000000) * 0.25
 
-    # Sec 154 / 154A - Exports
     elif category == "Sec 154 / 154A - Exports":
         if subcategory == "Export of Goods (General)":
             it_rate = 0.0125
@@ -145,7 +137,6 @@ def get_rates(authority, category, subcategory, st_registered, atl_active, is_co
         else:
             it_rate = 0.01 if atl_active else 0.05
 
-    # Sec 152 - Payments to Non-Residents
     elif category == "Sec 152 - Payments to Non-Residents":
         if subcategory == "IT & IT enabled services":
             it_rate = 0.04 if atl_active else 0.08
@@ -156,21 +147,30 @@ def get_rates(authority, category, subcategory, st_registered, atl_active, is_co
 
     return st_wh_frac, it_rate, it_fixed_amount
 
-def calculate(base_value, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate=None, manual_deduction=0.0):
+def calculate(base_value, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate=None, manual_deduction=0.0, is_monthly_rent=False):
     if base_value < 0:
         raise ValueError("Base value negative nahi ho sakti.")
         
     st_wh_frac, auto_it_rate, auto_fixed_amt = get_rates(authority, category, subcategory, st_registered, atl_active, is_company, base_value)
-    
     it_rate = manual_it_rate if manual_it_rate is not None else auto_it_rate
     
     st_amount = base_value * st_rate
     st_withheld = st_amount * st_wh_frac
     gross_value = base_value + st_amount
     
-    # If rent fixed slab amount applies and no manual override
     if category == "Sec 155 - Rent of Immovable Property" and not is_company and atl_active and manual_it_rate is None:
-        it_withheld = auto_fixed_amt
+        annual_rent = (base_value * 12) if is_monthly_rent else base_value
+        
+        if annual_rent <= 300000:
+            annual_tax = 0.0
+        elif annual_rent <= 600000:
+            annual_tax = (annual_rent - 300000) * 0.05
+        elif annual_rent <= 2000000:
+            annual_tax = 15000 + (annual_rent - 600000) * 0.10
+        else:
+            annual_tax = 155000 + (annual_rent - 2000000) * 0.25
+            
+        it_withheld = (annual_tax / 12) if is_monthly_rent else annual_tax
     else:
         it_withheld = gross_value * it_rate
         
@@ -189,19 +189,17 @@ def calculate(base_value, authority, category, subcategory, st_registered, atl_a
         "it_rate": it_rate
     }
 
-def reverse_gross_up(net_payment, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate=None, manual_deduction=0.0):
+def reverse_gross_up(net_payment, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate=None, manual_deduction=0.0, is_monthly_rent=False):
     if net_payment <= 0:
         raise ValueError("Net payment zero se zyada honi chahiye.")
         
-    # For reverse working with manual deduction, adjust net payment target first
     adjusted_net = net_payment + manual_deduction
     st_wh_frac, auto_it_rate, _ = get_rates(authority, category, subcategory, st_registered, atl_active, is_company, net_payment)
     it_rate = manual_it_rate if manual_it_rate is not None else auto_it_rate
     
     factor = 1 + st_rate - (st_rate * st_wh_frac) - ((1 + st_rate) * it_rate)
-    
     if factor <= 0:
         raise ValueError("Taxes itne zyada hain ke reverse calculation mumkin nahi.")
         
     base_value = adjusted_net / factor
-    return calculate(base_value, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate, manual_deduction)
+    return calculate(base_value, authority, category, subcategory, st_registered, atl_active, is_company, st_rate, manual_it_rate, manual_deduction, is_monthly_rent)

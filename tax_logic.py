@@ -3,7 +3,7 @@
 AUTHORITIES = {
     "FBR (Goods)": 0.18,
     "FBR (ICT)": 0.15,
-    "SRB": 0.13,
+    "SRB": 0.15,
     "PRA": 0.16,
     "KPRA": 0.15,
     "BRA": 0.15,

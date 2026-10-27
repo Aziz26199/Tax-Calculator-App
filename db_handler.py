@@ -4,13 +4,13 @@ import pandas as pd
 DB_FILE = "invoices.db"
 
 COLUMNS = [
-    "id", "invoice_number", "invoice_date", "posting_date", "client", "ntn", "authority", "category", 
+    "id", "invoice_number", "invoice_month", "posting_date", "client", "ntn", "authority", "category", 
     "subcategory", "st_rate", "st_registered", "atl_active", "is_company", 
     "base_value", "sales_tax", "st_withheld", "gross_value", "it_withheld", "net_payable"
 ]
 
 HEADERS = [
-    "ID", "Invoice #", "Inv Date", "Post Date", "Client", "NTN / CNIC", "Authority", "Category", 
+    "ID", "Invoice #", "Inv Month", "Post Date", "Client", "NTN / CNIC", "Authority", "Category", 
     "Sub-Category", "ST Rate", "ST Reg.", "ATL", "Company", 
     "Base Value", "Sales Tax", "ST Withheld", "Gross Value", "IT Withheld", "Net Payable"
 ]
@@ -26,7 +26,7 @@ class DatabaseHandler:
         CREATE TABLE IF NOT EXISTS invoices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             invoice_number TEXT,
-            invoice_date TEXT,
+            invoice_month TEXT,
             posting_date TEXT,
             client TEXT,
             ntn TEXT,
@@ -51,13 +51,13 @@ class DatabaseHandler:
     def insert_invoice(self, rec):
         query = """
         INSERT INTO invoices (
-            invoice_number, invoice_date, posting_date, client, ntn, authority, category, subcategory, 
+            invoice_number, invoice_month, posting_date, client, ntn, authority, category, subcategory, 
             st_rate, st_registered, atl_active, is_company, 
             base_value, sales_tax, st_withheld, gross_value, it_withheld, net_payable
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         vals = (
-            rec.get("invoice_number", ""), rec.get("invoice_date", ""), rec.get("posting_date", ""), 
+            rec.get("invoice_number", ""), rec.get("invoice_month", ""), rec.get("posting_date", ""), 
             rec.get("client", ""), rec.get("ntn", ""), 
             rec.get("authority", ""), rec.get("category", ""), rec.get("subcategory", ""), 
             rec.get("st_rate", 0.0), rec.get("st_registered", 1), rec.get("atl_active", 1), 
@@ -71,13 +71,13 @@ class DatabaseHandler:
     def update_invoice(self, record_id, rec):
         query = """
         UPDATE invoices SET 
-            invoice_number=?, invoice_date=?, posting_date=?, client=?, ntn=?, authority=?, category=?, subcategory=?, 
+            invoice_number=?, invoice_month=?, posting_date=?, client=?, ntn=?, authority=?, category=?, subcategory=?, 
             st_rate=?, st_registered=?, atl_active=?, is_company=?, 
             base_value=?, sales_tax=?, st_withheld=?, gross_value=?, it_withheld=?, net_payable=?
         WHERE id=?
         """
         vals = (
-            rec["invoice_number"], rec["invoice_date"], rec["posting_date"], rec["client"], rec["ntn"], rec["authority"], 
+            rec["invoice_number"], rec["invoice_month"], rec["posting_date"], rec["client"], rec["ntn"], rec["authority"], 
             rec["category"], rec["subcategory"], rec["st_rate"], rec["st_registered"], 
             rec["atl_active"], rec["is_company"], rec["base_value"], rec["sales_tax"], 
             rec["st_withheld"], rec["gross_value"], rec["it_withheld"], rec["net_payable"],
@@ -94,7 +94,7 @@ class DatabaseHandler:
         cursor = self.conn.cursor()
         if search:
             q = f"%{search}%"
-            cursor.execute("SELECT * FROM invoices WHERE client LIKE ? OR invoice_number LIKE ? OR authority LIKE ? OR ntn LIKE ? ORDER BY id DESC", (q, q, q, q))
+            cursor.execute("SELECT * FROM invoices WHERE client LIKE ? OR invoice_number LIKE ? OR authority LIKE ? OR ntn LIKE ? OR invoice_month LIKE ? ORDER BY id DESC", (q, q, q, q, q))
         else:
             cursor.execute("SELECT * FROM invoices ORDER BY id DESC")
         

@@ -26,6 +26,18 @@ st.session_state.page = selected_page
 def money(v):
     return f"{v:,.2f}"
 
+def safe_int(val, default=1):
+    try:
+        return int(float(val)) if pd.notnull(val) and str(val).strip() != "" else default
+    except:
+        return default
+
+def safe_float(val, default=0.0):
+    try:
+        return float(val) if pd.notnull(val) and str(val).strip() != "" else default
+    except:
+        return default
+
 if st.session_state.page == "Calculator & Entry":
     st.title("Tax Calculator & Invoice Entry")
     
@@ -44,8 +56,14 @@ if st.session_state.page == "Calculator & Entry":
         
         with c1:
             inv_no = st.text_input("Invoice Number", value=rec['invoice_number'] if rec else "")
-            date_val = datetime.datetime.strptime(rec['date'], "%Y-%m-%d").date() if rec and rec.get('date') else datetime.date.today()
-            inv_date = st.date_input("Date", value=date_val)
+            
+            # Dates Handling
+            inv_date_val = datetime.datetime.strptime(rec['invoice_date'], "%Y-%m-%d").date() if rec and rec.get('invoice_date') else datetime.date.today()
+            inv_date = st.date_input("Invoice Date", value=inv_date_val)
+            
+            post_date_val = datetime.datetime.strptime(rec['posting_date'], "%Y-%m-%d").date() if rec and rec.get('posting_date') else datetime.date.today()
+            post_date = st.date_input("Posting Date", value=post_date_val)
+            
             client = st.text_input("Client Name", value=rec['client'] if rec else "")
             ntn = st.text_input("Client NTN / CNIC", value=rec['ntn'] if rec and rec.get('ntn') else "")
             
@@ -134,7 +152,8 @@ if st.session_state.page == "Calculator & Entry":
             else:
                 record = {
                     "invoice_number": inv_no.strip(),
-                    "date": inv_date.strftime("%Y-%m-%d"),
+                    "invoice_date": inv_date.strftime("%Y-%m-%d"),
+                    "posting_date": post_date.strftime("%Y-%m-%d"),
                     "client": client.strip(),
                     "ntn": ntn.strip(),
                     "authority": authority, "category": category,
@@ -159,7 +178,6 @@ if st.session_state.page == "Calculator & Entry":
 elif st.session_state.page == "Invoice History & Bulk Upload":
     st.title("Invoice History, Management & Excel Bulk Upload")
     
-    # --- EXCEL UPLOAD & SAMPLE SECTION ---
     with st.expander("📁 Bulk Upload Invoices via Excel / Download Sample Template"):
         col_up1, col_up2 = st.columns(2)
         
@@ -167,13 +185,13 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
             st.markdown("#### 1. Download Sample Template")
             st.write("Is sample file ko download karein taake columns format bilkul theek rahe.")
             sample_df = pd.DataFrame(columns=[
-                "invoice_number", "date", "client", "ntn", "authority", "category", 
+                "invoice_number", "invoice_date", "posting_date", "client", "ntn", "authority", "category", 
                 "subcategory", "st_rate", "st_registered", "atl_active", "is_company", 
                 "base_value", "sales_tax", "st_withheld", "gross_value", "it_withheld", "net_payable"
             ])
-            # Sample row
             sample_loc = pd.DataFrame([{
-                "invoice_number": "INV-001", "date": "2026-10-27", "client": "ABC Corp", "ntn": "1234567-8",
+                "invoice_number": "INV-001", "invoice_date": "2026-10-27", "posting_date": str(datetime.date.today()), 
+                "client": "ABC Corp", "ntn": "1234567-8",
                 "authority": "FBR (Goods)", "category": "Sec 153 - Supplies", "subcategory": "General Supplies",
                 "st_rate": 0.18, "st_registered": 1, "atl_active": 1, "is_company": 1,
                 "base_value": 100000.0, "sales_tax": 18000.0, "st_withheld": 3600.0,
@@ -204,22 +222,23 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
                         for _, row in df_upload.iterrows():
                             rec_dict = {
                                 "invoice_number": str(row.get("invoice_number", "")),
-                                "date": str(row.get("date", datetime.date.today())),
+                                "invoice_date": str(row.get("invoice_date", datetime.date.today())),
+                                "posting_date": str(row.get("posting_date", datetime.date.today())),
                                 "client": str(row.get("client", "")),
                                 "ntn": str(row.get("ntn", "")),
                                 "authority": str(row.get("authority", "FBR (Goods)")),
                                 "category": str(row.get("category", "")),
                                 "subcategory": str(row.get("subcategory", "")),
-                                "st_rate": float(row.get("st_rate", 0.18)),
-                                "st_registered": int(row.get("st_registered", 1)),
-                                "atl_active": int(row.get("atl_active", 1)),
-                                "is_company": int(row.get("is_company", 1)),
-                                "base_value": float(row.get("base_value", 0.0)),
-                                "sales_tax": float(row.get("sales_tax", 0.0)),
-                                "st_withheld": float(row.get("st_withheld", 0.0)),
-                                "gross_value": float(row.get("gross_value", 0.0)),
-                                "it_withheld": float(row.get("it_withheld", 0.0)),
-                                "net_payable": float(row.get("net_payable", 0.0))
+                                "st_rate": safe_float(row.get("st_rate"), 0.18),
+                                "st_registered": safe_int(row.get("st_registered"), 1),
+                                "atl_active": safe_int(row.get("atl_active"), 1),
+                                "is_company": safe_int(row.get("is_company"), 1),
+                                "base_value": safe_float(row.get("base_value"), 0.0),
+                                "sales_tax": safe_float(row.get("sales_tax"), 0.0),
+                                "st_withheld": safe_float(row.get("st_withheld"), 0.0),
+                                "gross_value": safe_float(row.get("gross_value"), 0.0),
+                                "it_withheld": safe_float(row.get("it_withheld"), 0.0),
+                                "net_payable": safe_float(row.get("net_payable"), 0.0)
                             }
                             db.insert_invoice(rec_dict)
                             count += 1

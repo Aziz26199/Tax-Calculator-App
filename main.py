@@ -26,17 +26,31 @@ st.session_state.page = selected_page
 def money(v):
     return f"{v:,.2f}"
 
+# --- SAFE CONVERTERS FOR MISSING EXCEL DATA ---
+def safe_str(val, default=""):
+    if pd.isna(val):
+        return default
+    s = str(val).strip()
+    if s.lower() == 'nan':
+        return default
+    return s
+
 def safe_int(val, default=1):
+    if pd.isna(val):
+        return default
     try:
-        return int(float(val)) if pd.notnull(val) and str(val).strip() != "" else default
+        return int(float(val)) if str(val).strip() != "" else default
     except:
         return default
 
 def safe_float(val, default=0.0):
+    if pd.isna(val):
+        return default
     try:
-        return float(val) if pd.notnull(val) and str(val).strip() != "" else default
+        return float(val) if str(val).strip() != "" else default
     except:
         return default
+# ---------------------------------------------
 
 if st.session_state.page == "Calculator & Entry":
     st.title("Tax Calculator & Invoice Entry")
@@ -222,15 +236,16 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
                     if st.button("Confirm & Import into Database"):
                         count = 0
                         for _, row in df_upload.iterrows():
+                            # SAFE IMPORT: Missing data will not crash the app
                             rec_dict = {
-                                "invoice_number": str(row.get("invoice_number", "")),
-                                "invoice_month": str(row.get("invoice_month", datetime.date.today().strftime("%b-%y"))),
-                                "posting_date": str(row.get("posting_date", datetime.date.today())),
-                                "client": str(row.get("client", "")),
-                                "ntn": str(row.get("ntn", "")),
-                                "authority": str(row.get("authority", "FBR (Goods)")),
-                                "category": str(row.get("category", "")),
-                                "subcategory": str(row.get("subcategory", "")),
+                                "invoice_number": safe_str(row.get("invoice_number"), ""),
+                                "invoice_month": safe_str(row.get("invoice_month"), datetime.date.today().strftime("%b-%y")),
+                                "posting_date": safe_str(row.get("posting_date"), str(datetime.date.today())),
+                                "client": safe_str(row.get("client"), ""),
+                                "ntn": safe_str(row.get("ntn"), ""),
+                                "authority": safe_str(row.get("authority"), "FBR (Goods)"),
+                                "category": safe_str(row.get("category"), ""),
+                                "subcategory": safe_str(row.get("subcategory"), ""),
                                 "st_rate": safe_float(row.get("st_rate"), 0.18),
                                 "st_registered": safe_int(row.get("st_registered"), 1),
                                 "atl_active": safe_int(row.get("atl_active"), 1),
@@ -244,7 +259,7 @@ elif st.session_state.page == "Invoice History & Bulk Upload":
                             }
                             db.insert_invoice(rec_dict)
                             count += 1
-                        st.success(f"Successfully imported {count} invoices from Excel! Aapka original tax as-is save ho gaya hai.")
+                        st.success(f"Successfully imported {count} invoices from Excel! Missing data was safely skipped.")
                         st.rerun()
                 except Exception as e:
                     st.error(f"Error reading Excel file: {e}")

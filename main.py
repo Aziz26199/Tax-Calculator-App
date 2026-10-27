@@ -80,9 +80,8 @@ with c3:
             _, auto_it_rate = tl.get_rates(authority, category, subcategory, chk_reg, chk_atl, chk_co)
             it_rate_val = (rec.get('it_rate', auto_it_rate) * 100) if rec else (auto_it_rate * 100)
             
-            # Manual override option for IT Rate
-            it_rate_input = st.number_input("Income Tax Rate (%) [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
-
+# Manual override option for IT Rate
+    it_rate_input = st.number_input("Income Tax Rate (%) [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
     st.markdown("---")
     
   # Financial Inputs

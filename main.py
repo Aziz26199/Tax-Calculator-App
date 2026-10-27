@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import io
 import tax_logic as tl
 from db_handler import DatabaseHandler, COLUMNS, HEADERS
 
@@ -18,7 +19,7 @@ if 'page' not in st.session_state:
     st.session_state.page = "Calculator & Entry"
 
 st.sidebar.title("Navigation")
-menu = ["Calculator & Entry", "Invoice History"]
+menu = ["Calculator & Entry", "Invoice History & Bulk Upload"]
 selected_page = st.sidebar.radio("Go to", menu, index=menu.index(st.session_state.page))
 st.session_state.page = selected_page
 
@@ -38,7 +39,7 @@ if st.session_state.page == "Calculator & Entry":
             st.rerun()
 
     with st.container():
-        st.subheader("Invoice Details")
+        st.subheader("Invoice & Client Details")
         c1, c2, c3 = st.columns(3)
         
         with c1:
@@ -46,6 +47,7 @@ if st.session_state.page == "Calculator & Entry":
             date_val = datetime.datetime.strptime(rec['date'], "%Y-%m-%d").date() if rec and rec.get('date') else datetime.date.today()
             inv_date = st.date_input("Date", value=date_val)
             client = st.text_input("Client Name", value=rec['client'] if rec else "")
+            ntn = st.text_input("Client NTN / CNIC", value=rec['ntn'] if rec and rec.get('ntn') else "")
             
         with c2:
             auth_options = list(tl.AUTHORITIES.keys())
@@ -126,8 +128,6 @@ if st.session_state.page == "Calculator & Entry":
         m5.metric("IT Withheld", money(result['it_withheld']))
         m6.metric("NET PAYABLE", money(result['net']))
         
-        st.caption(f"ST rate {result['st_rate']*100:.2f}% | ST withheld {result['st_wh_frac']*100:.2f}% of ST | IT rate {result['it_rate']*100:.2f}% | Manual Deduction: {money(result['manual_deduction'])}")
-        
         if st.button("Save to Database" if not st.session_state.edit_id else "Update Invoice", type="primary"):
             if not inv_no.strip() or not client.strip():
                 st.warning("Invoice Number aur Client Name zaroori hain.")
@@ -136,6 +136,7 @@ if st.session_state.page == "Calculator & Entry":
                     "invoice_number": inv_no.strip(),
                     "date": inv_date.strftime("%Y-%m-%d"),
                     "client": client.strip(),
+                    "ntn": ntn.strip(),
                     "authority": authority, "category": category,
                     "subcategory": subcategory, "st_rate": st_rate / 100.0,
                     "st_registered": int(chk_reg), "atl_active": int(chk_atl),
@@ -155,18 +156,86 @@ if st.session_state.page == "Calculator & Entry":
     else:
         st.info("Amounts enter karein calculation dekhne ke liye.")
 
-elif st.session_state.page == "Invoice History":
-    st.title("Invoice History & Management")
+elif st.session_state.page == "Invoice History & Bulk Upload":
+    st.title("Invoice History, Management & Excel Bulk Upload")
     
-    search_q = st.text_input("Search client / invoice # / authority...")
+    # --- EXCEL UPLOAD & SAMPLE SECTION ---
+    with st.expander("📁 Bulk Upload Invoices via Excel / Download Sample Template"):
+        col_up1, col_up2 = st.columns(2)
+        
+        with col_up1:
+            st.markdown("#### 1. Download Sample Template")
+            st.write("Is sample file ko download karein taake columns format bilkul theek rahe.")
+            sample_df = pd.DataFrame(columns=[
+                "invoice_number", "date", "client", "ntn", "authority", "category", 
+                "subcategory", "st_rate", "st_registered", "atl_active", "is_company", 
+                "base_value", "sales_tax", "st_withheld", "gross_value", "it_withheld", "net_payable"
+            ])
+            # Sample row
+            sample_loc = pd.DataFrame([{
+                "invoice_number": "INV-001", "date": "2026-10-27", "client": "ABC Corp", "ntn": "1234567-8",
+                "authority": "FBR (Goods)", "category": "Sec 153 - Supplies", "subcategory": "General Supplies",
+                "st_rate": 0.18, "st_registered": 1, "atl_active": 1, "is_company": 1,
+                "base_value": 100000.0, "sales_tax": 18000.0, "st_withheld": 3600.0,
+                "gross_value": 118000.0, "it_withheld": 5900.0, "net_payable": 108500.0
+            }])
+            sample_df = pd.concat([sample_df, sample_loc], ignore_index=True)
+            
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                sample_df.to_excel(writer, index=False, sheet_name='Invoices')
+            excel_data = output.getvalue()
+            
+            st.download_button(
+                label="📥 Download Sample Excel Template",
+                data=excel_data,
+                file_name="Invoice_Upload_Sample.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            
+        with col_up2:
+            st.markdown("#### 2. Upload Filled Excel File")
+            uploaded_file = st.file_uploader("Apni Excel file yahan drop karein (.xlsx)", type=["xlsx"])
+            if uploaded_file is not None:
+                try:
+                    df_upload = pd.read_excel(uploaded_file)
+                    if st.button("Confirm & Import into Database"):
+                        count = 0
+                        for _, row in df_upload.iterrows():
+                            rec_dict = {
+                                "invoice_number": str(row.get("invoice_number", "")),
+                                "date": str(row.get("date", datetime.date.today())),
+                                "client": str(row.get("client", "")),
+                                "ntn": str(row.get("ntn", "")),
+                                "authority": str(row.get("authority", "FBR (Goods)")),
+                                "category": str(row.get("category", "")),
+                                "subcategory": str(row.get("subcategory", "")),
+                                "st_rate": float(row.get("st_rate", 0.18)),
+                                "st_registered": int(row.get("st_registered", 1)),
+                                "atl_active": int(row.get("atl_active", 1)),
+                                "is_company": int(row.get("is_company", 1)),
+                                "base_value": float(row.get("base_value", 0.0)),
+                                "sales_tax": float(row.get("sales_tax", 0.0)),
+                                "st_withheld": float(row.get("st_withheld", 0.0)),
+                                "gross_value": float(row.get("gross_value", 0.0)),
+                                "it_withheld": float(row.get("it_withheld", 0.0)),
+                                "net_payable": float(row.get("net_payable", 0.0))
+                            }
+                            db.insert_invoice(rec_dict)
+                            count += 1
+                        st.success(f"Successfully imported {count} invoices from Excel! Aapka original tax as-is save ho gaya hai.")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Error reading Excel file: {e}")
+
+    st.markdown("---")
+    search_q = st.text_input("Search client / NTN / invoice # / authority...")
     rows = db.fetch_all(search_q.strip())
     
     if rows:
         df = pd.DataFrame(rows)
-        # Ensure column order matches HEADERS
         df = df[COLUMNS]
         
-        # Format display values cleanly
         df_display = df.copy()
         df_display["st_registered"] = df_display["st_registered"].apply(lambda x: "Yes" if x else "No")
         df_display["atl_active"] = df_display["atl_active"].apply(lambda x: "Yes" if x else "No")
@@ -206,12 +275,16 @@ elif st.session_state.page == "Invoice History":
         with c_act3:
             st.write("")
             st.write("")
-            csv_data = df.to_csv(index=False).encode('utf-8')
+            output_exp = io.BytesIO()
+            with pd.ExcelWriter(output_exp, engine='openpyxl') as writer:
+                df_display.to_excel(writer, index=False, sheet_name='Exported_Invoices')
+            excel_export_data = output_exp.getvalue()
+            
             st.download_button(
-                label="Download Complete Database as CSV",
-                data=csv_data,
-                file_name=f"Invoices_Export_{datetime.date.today()}.csv",
-                mime='text/csv'
+                label="📥 Download Database as Excel File",
+                data=excel_export_data,
+                file_name=f"Invoices_Export_{datetime.date.today()}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
     else:
         st.info("No records found in database.")

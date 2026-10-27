@@ -74,6 +74,11 @@ if st.session_state.page == "Calculator & Entry":
             it_rate_input = st.number_input("Income Tax Rate (%) [Editable]", min_value=0.0, max_value=100.0, value=float(it_rate_val), step=0.5)
             manual_deduction_input = st.number_input("Manual Further Deduction / Adjustment", min_value=0.0, value=0.0, step=100.0)
 
+    # Monthly Rent Option (Sirf tab dikhega jab Sec 155 Rent aur Individual/AOP ho)
+    is_monthly_rent = False
+    if category == "Sec 155 - Rent of Immovable Property" and not chk_co:
+        is_monthly_rent = st.checkbox("Is this Monthly Rent? (Auto-multiply by 12 for annual slabs)", value=True)
+
     st.markdown("---")
     
     is_reverse = st.toggle("Reverse Working (Net Payment se nikalo)")
@@ -93,7 +98,8 @@ if st.session_state.page == "Calculator & Entry":
         is_company=chk_co,
         st_rate=st_rate / 100.0,
         manual_it_rate=it_rate_input / 100.0,
-        manual_deduction=manual_deduction_input
+        manual_deduction=manual_deduction_input,
+        is_monthly_rent=is_monthly_rent
     )
 
     result = None
@@ -116,7 +122,7 @@ if st.session_state.page == "Calculator & Entry":
         m5.metric("IT Withheld", money(result['it_withheld']))
         m6.metric("NET PAYABLE", money(result['net']))
         
-        st.caption(f"ST rate {result['st_rate']*100:.2f}% | ST withheld {result['st_wh_frac']*100:.0f}% of ST | IT rate {result['it_rate']*100:.2f}% on Gross | Manual Deduction: {money(result['manual_deduction'])}")
+        st.caption(f"ST rate {result['st_rate']*100:.2f}% | ST withheld {result['st_wh_frac']*100:.0f}% of ST | IT rate {result['it_rate']*100:.2f}% | Manual Deduction: {money(result['manual_deduction'])}")
         
         if st.button("Save to Database" if not st.session_state.edit_id else "Update Invoice", type="primary"):
             if not inv_no.strip() or not client.strip():

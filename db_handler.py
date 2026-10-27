@@ -1,7 +1,6 @@
 import sqlite3
 import pandas as pd
 
-# Using in-memory or safe local path to avoid readonly errors on cloud servers
 DB_FILE = ":memory:"  
 
 COLUMNS = [
@@ -18,7 +17,6 @@ HEADERS = [
 
 class DatabaseHandler:
     def __init__(self):
-        # uri=True enables safe shared memory across streamlit threads
         self.conn = sqlite3.connect("file:memdb1?mode=memory&cache=shared", uri=True, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.create_table()
@@ -92,14 +90,34 @@ class DatabaseHandler:
         self.conn.execute("DELETE FROM invoices WHERE id=?", (record_id,))
         self.conn.commit()
 
-    def fetch_all(self, search=""):
+    def delete_all_invoices(self):
+        self.conn.execute("DELETE FROM invoices")
+        self.conn.commit()
+
+    def fetch_all(self, search="", authority_filter="All", category_filter="All", month_filter="All"):
         cursor = self.conn.cursor()
+        query = "SELECT * FROM invoices WHERE 1=1"
+        params = []
+
         if search:
             q = f"%{search}%"
-            cursor.execute("SELECT * FROM invoices WHERE client LIKE ? OR invoice_number LIKE ? OR authority LIKE ? OR ntn LIKE ? OR invoice_month LIKE ? ORDER BY id DESC", (q, q, q, q, q))
-        else:
-            cursor.execute("SELECT * FROM invoices ORDER BY id DESC")
-        
+            query += " AND (client LIKE ? OR invoice_number LIKE ? OR authority LIKE ? OR ntn LIKE ? OR invoice_month LIKE ?)"
+            params.extend([q, q, q, q, q])
+
+        if authority_filter and authority_filter != "All":
+            query += " AND authority = ?"
+            params.append(authority_filter)
+
+        if category_filter and category_filter != "All":
+            query += " AND category = ?"
+            params.append(category_filter)
+
+        if month_filter and month_filter != "All":
+            query += " AND invoice_month = ?"
+            params.append(month_filter)
+
+        query += " ORDER BY id DESC"
+        cursor.execute(query, params)
         rows = cursor.fetchall()
         return [dict(row) for row in rows]
 
